@@ -1,0 +1,207 @@
+{
+  "generated_at": "2026-09-24T09:09:14Z",
+  "repository": "seune-h0203/cones",
+  "tables": {
+    "projects": [
+      {
+        "project_id": 1,
+        "project_name": "cones",
+        "github_repo_full_name": "seune-h0203/cones",
+        "github_project_number": 1,
+        "created_at": "2026-09-24T07:36:41.35123"
+      }
+    ],
+    "users": [
+      {
+        "user_id": 1,
+        "github_username": "Hamchaelim",
+        "display_name": "Hamchaelim",
+        "created_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "user_id": 2,
+        "github_username": "seune-h0203",
+        "display_name": "seune-h0203",
+        "created_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "user_id": 3,
+        "github_username": "ohoobae",
+        "display_name": "ohoobae",
+        "created_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "user_id": 4,
+        "github_username": "qkrtpfls03",
+        "display_name": "qkrtpfls03",
+        "created_at": "2026-09-24T07:36:41.35123"
+      }
+    ],
+    "statuses": [
+      {
+        "status_id": 1,
+        "project_id": 1,
+        "status_name": "Todo",
+        "position": 0,
+        "is_done": false
+      },
+      {
+        "status_id": 2,
+        "project_id": 1,
+        "status_name": "In Progress",
+        "position": 1,
+        "is_done": false
+      },
+      {
+        "status_id": 3,
+        "project_id": 1,
+        "status_name": "Done",
+        "position": 2,
+        "is_done": true
+      }
+    ],
+    "milestones": [
+      {
+        "milestone_id": 1,
+        "project_id": 1,
+        "github_milestone_number": 1,
+        "title": "CONES — FINAL SUBMISSION",
+        "state": "open",
+        "due_date": null
+      }
+    ],
+    "tasks": [],
+    "task_assignees": [
+      {
+        "task_id": 1,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 2,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 3,
+        "user_id": 3,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 4,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 4,
+        "user_id": 4,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 5,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 5,
+        "user_id": 4,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 6,
+        "user_id": 3,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 6,
+        "user_id": 4,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 7,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 7,
+        "user_id": 3,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 8,
+        "user_id": 3,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 9,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 9,
+        "user_id": 4,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 10,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 11,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 12,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 13,
+        "user_id": 1,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 14,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 14,
+        "user_id": 3,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 15,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 15,
+        "user_id": 4,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 16,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 17,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 18,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      },
+      {
+        "task_id": 19,
+        "user_id": 2,
+        "assigned_at": "2026-09-24T07:36:41.35123"
+      }
+    ]
+  }
+}

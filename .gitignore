@@ -9,6 +9,25 @@ Thumbs.db
 __pycache__/
 *.pyc
 
-# Environment
+# Environment and secrets
 .env
 .env.*
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.secret
+*.token
+**/.env
+**/*.key
+**/*.pem
+**/*.token
+**/*.secret
+
+# GitHub / Supabase / API credentials
+*credentials*
+*secrets*
