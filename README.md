@@ -1,6 +1,8 @@
-# CONES 칸반 보드 DB 역설계
+# CONES: GitHub 칸반 데이터 기반 DB 역설계
 
-CONES 팀이 실제로 사용한 GitHub Projects 칸반 보드를 관계형 데이터베이스로 역설계하고 Supabase에 구축한 결과입니다.
+이 문서는 CONES 팀이 실제로 사용한 GitHub Issues/Projects 데이터를 바탕으로
+Supabase 관계형 데이터베이스를 설계한 결과다. GitHub의 내부 데이터베이스를 복제하는 것이 아니라,
+API와 보드 CSV로 확인할 수 있는 데이터를 추출한 뒤 우리 프로젝트에 맞는 구조로 정규화한다.
 
 - 원본 보드: [cones project](https://github.com/users/seune-h0203/projects/3)
 - 원본 저장소: [seune-h0203/cones](https://github.com/seune-h0203/cones)
@@ -9,57 +11,76 @@ CONES 팀이 실제로 사용한 GitHub Projects 칸반 보드를 관계형 데�
 
 ## 1. 프로젝트 목표
 
-GitHub 보드 화면에는 `Todo`, `In Progress`, `Done` 열과 작업 카드가 표시됩니다.
-화면에 보이는 정보를 한 테이블에 그대로 복사하지 않고, 반복되는 데이터와 관계를 분리해
-보드·상태·카드·담당자를 각각 관리할 수 있는 DB로 설계했습니다.
-
-- 한 보드에는 어떤 상태 열이 있는가?
-- 각 카드는 어느 열에 놓여 있는가?
-- 한 카드에 담당자가 여러 명이면 어떻게 저장하는가?
-- 카드가 "닫힌 이슈"인 것과 "Done 열에 있는 것"은 같은 값인가?
+- CONES에서 실제 사용한 Issue, 담당자, Project Status를 원본 데이터로 사용한다.
+- 원본의 반복 데이터와 다대다 관계를 분석해 관계형 DB로 역설계한다.
+- PK, FK, 복합 PK, UNIQUE, CHECK, 삭제 정책, RLS를 목적에 맞게 적용한다.
+- 원본 데이터를 Supabase에 적재하고 JOIN 결과가 원본 보드와 일치하는지 검증한다.
+- 사용하지 않은 기능까지 복제하지 않고, 실제 데이터로 필요성을 설명할 수 있는 구조만 만든다.
 
 ---
 
-## 2. 원본 데이터 분석과 정규화
+## 2. 실제 데이터 확인 결과
 
-보드에서 관찰한 정보를 아래와 같이 분리했습니다.
+CONES 보드(cones project)와 저장소 Issue를 확인한 결과다.
 
-| GitHub 보드에서 관찰한 정보 | DB Entity | 분리한 이유 |
-|---|---|---|
-| 저장소 / 보드 | `projects` | 보드 이름·저장소 식별자를 한 번만 저장 |
-| Todo / In Progress / Done | `statuses` | 열 이름과 표시 순서를 데이터로 관리 |
-| Issue 번호, 제목, 본문, 상태 | `tasks` | 실제 작업 단위 |
-| 담당자 (아바타) | `users` | 카드마다 반복되는 계정 정보 분리 |
-| 카드-담당자 배정 | `task_assignees` | 한 카드에 담당자가 여러 명 → N:M |
-| 마일스톤 | `milestones` | 여러 카드가 공유하는 목표 |
+| 항목 | 값 |
+|---|---|
+| 보드 상태 열 | Todo / In Progress / Done |
+| 보드에 올라간 카드 | 19건 |
+| 담당 계정 | `Hamchaelim`, `seune-h0203`, `ohoobae`, `qkrtpfls03` (4명) |
+| 담당 배정 | 26건 (한 카드에 담당자 2명인 경우 7건) |
+| 실제 사용된 Label | 없음 (제목 접두사로 대체) |
 
-### 평면 구조로 두면 생기는 문제
+대표 샘플은 다음과 같다.
 
-처음 추출한 보드 데이터는 아래와 같은 한 장의 표였습니다.
+| Issue | 제목 | 담당자 | Board status |
+|---|---|---|---|
+| #9 | [QA] Animation 및 Interaction 최종 테스트 | Hamchaelim | In Progress |
+| #13 | [PRESENTATION] 3분 발표 및 Demo 준비 | seune-h0203 | In Progress |
+| #3 | [FE] 전체 페이지 콘텐츠 연결 검수 | qkrtpfls03, seune-h0203 | Done |
+| #32 | [BE] Supabase 커머스 백엔드(스키마·RLS·RPC) 구축 | ohoobae, seune-h0203 | Done |
+| #12 | [DEPLOY] GitHub Pages 최종 배포 확인 | Hamchaelim | Done |
 
-| title | assignees | status |
-|---|---|---|
-| [FE] 전체 페이지 콘텐츠 연결 검수 | qkrtpfls03, seune-h0203 | Done |
-
-- 같은 담당자 이름이 여러 행에 반복됩니다.
-- 한 카드에 담당자가 둘이면 한 칸에 두 값을 넣어야 합니다.
-- 상태 이름의 표기 차이와 오타를 막을 수 없습니다.
-
-그래서 담당자는 `users`로, 배정 관계는 `task_assignees`로 분리했습니다.
-
-### 이 설계의 핵심: 이슈 상태와 보드 상태의 분리
+### Issue state와 Project status는 다른 값이다
 
 | 값 | 의미 | 저장 위치 |
 |---|---|---|
-| Issue state | 이슈 자체의 열림/닫힘 | `tasks.issue_state` |
-| Board status | 칸반 보드에서 카드가 놓인 열 | `tasks.status_id` → `statuses` |
+| Issue state | Issue 자체의 열림/닫힘 상태 | `tasks.issue_state` |
+| Board status | 칸반 보드에서 현재 놓인 단계 | `tasks.status_id` → `statuses` |
 
-두 값은 항상 일치하지 않습니다. 이슈가 닫혔는데 카드가 아직 In Progress에 남아 있을 수 있습니다.
-따라서 하나의 문자열로 합치지 않고 별도 컬럼으로 저장했습니다.
+이슈가 닫혔는데 카드가 아직 In Progress에 있을 수 있으므로 하나의 status 문자열로 합치지 않는다.
 
 ---
 
-## 3. Conceptual ERD
+## 3. 원본을 한 표로 볼 때 생기는 문제
+
+처음 추출한 데이터는 다음과 같은 평면 구조였다.
+
+| issue_number | title | issue_state | board_status | assignees |
+|---|---|---|---|---|
+| 3 | [FE] 전체 페이지 콘텐츠 연결 검수 | closed | Done | qkrtpfls03, seune-h0203 |
+
+이 구조를 그대로 테이블로 쓰면 다음 문제가 생긴다.
+
+- 같은 사용자·상태 문자열이 여러 행에 반복된다.
+- 담당자 계정명이 바뀌면 여러 행을 동시에 수정해야 한다.
+- 한 카드에 담당자가 여러 명이면 한 칸에 배열을 넣거나 행을 중복해야 한다.
+- 상태 이름의 오타와 표기 차이를 막기 어렵다.
+
+따라서 다음과 같이 분리한다.
+
+| GitHub에서 관찰한 대상 | DB Entity | 도출 이유 |
+|---|---|---|
+| Repository / Project | `projects` | 업무의 소속 단위 |
+| GitHub User | `users` | 반복되는 담당자 정보 분리 |
+| Issue | `tasks` | 관리할 업무 단위 |
+| Project Status | `statuses` | 상태 이름과 표시 순서 통제 |
+| Milestone | `milestones` | 여러 Task가 공유하는 목표 분리 |
+| Issue Assignee | `task_assignees` | Task와 User의 N:M 관계 표현 |
+
+---
+
+## 4. ERD
 
 ```mermaid
 erDiagram
@@ -72,86 +93,85 @@ erDiagram
     USERS ||--o{ TASK_ASSIGNEES : assigned
 ```
 
-- Project 1 : N Status — 하나의 보드는 여러 상태 열을 가집니다.
-- Project 1 : N Task — 하나의 보드는 여러 작업 카드를 가집니다.
-- Status 1 : N Task — 하나의 열에는 여러 카드가 놓입니다.
-- Milestone 1 : N Task — 하나의 목표에 여러 카드가 묶입니다.
-- **Task N : M User** — `task_assignees` 중간 테이블로 표현합니다.
+- Project 1:N Status
+- Project 1:N Milestone
+- Project 1:N Task
+- Status 1:N Task
+- Milestone 1:N Task
+- **Task N:M User → `task_assignees`**
 
 ---
 
-## 4. 테이블 구조
+## 5. 테이블 구조
 
-| 테이블 | 책임 | 주요 컬럼 |
+| 테이블 | 주요 컬럼 | 핵심 설계 |
 |---|---|---|
-| `projects` | 보드와 저장소 식별 | `project_id`, `project_name`, `github_repo_full_name`, `github_project_number` |
-| `users` | GitHub 담당자 계정 | `user_id`, `github_username`, `display_name` |
-| `statuses` | 보드의 상태 열과 순서 | `status_id`, `project_id`, `status_name`, `position`, `is_done` |
-| `milestones` | 공유 목표 | `milestone_id`, `project_id`, `github_milestone_number`, `title`, `state` |
-| `tasks` | 작업 카드(Issue) | `task_id`, `project_id`, `status_id`, `milestone_id`, `github_issue_number`, `title`, `body`, `issue_state`, `created_at`, `closed_at` |
-| `task_assignees` | 카드-담당자 배정 | `task_id`, `user_id`, `assigned_at` (복합 PK) |
+| `projects` | `project_id`, `project_name`, `github_repo_full_name`, `github_project_number` | 보드와 저장소 식별자 보존 |
+| `users` | `user_id`, `github_username`, `display_name` | `github_username`을 UNIQUE로 관리 |
+| `statuses` | `status_id`, `project_id`, `status_name`, `position`, `is_done` | 상태 이름과 순서를 데이터로 관리 |
+| `milestones` | `milestone_id`, `project_id`, `github_milestone_number`, `title`, `state` | 프로젝트 안에서 번호를 UNIQUE 처리 |
+| `tasks` | `task_id`, `project_id`, `status_id`, `milestone_id`, `github_issue_number`, `title`, `body`, `issue_state`, `created_at`, `closed_at` | Issue state와 Board status를 별도 저장 |
+| `task_assignees` | `task_id`, `user_id`, `assigned_at` | 복합 PK로 같은 사람의 중복 배정 방지 |
+
+### 주요 컬럼 설명
+
+**statuses**
+
+| 컬럼 | 설명 |
+|---|---|
+| `status_name` | 보드에 표시할 상태 이름. Todo / In Progress / Done |
+| `position` | 보드에서 열을 표시할 순서. 0부터 시작 |
+| `is_done` | 칸반상 완료 열로 취급할지 여부. Issue의 `closed`와는 별개 개념 |
+
+**tasks**
+
+| 컬럼 | 설명 |
+|---|---|
+| `github_issue_number` | 저장소 안에서 Issue를 표시하는 번호. 예: #32 |
+| `status_id` | 카드가 현재 놓인 보드 열 |
+| `issue_state` | Issue 자체의 `open` / `closed`. `status_id`와 구분 |
+| `milestone_id` | 연결된 마일스톤. 없으면 NULL |
+| `created_at` / `closed_at` | 원본 Issue의 생성·종료 시각 |
 
 ---
 
-## 5. 무결성 규칙
+## 6. 무결성 설계
 
-| 규칙 | 적용 방식 | 목적 |
-|---|---|---|
-| 보드 삭제 시 하위 데이터 정리 | `ON DELETE CASCADE` | 고아 Status/Task 방지 |
-| 카드 소속 관계 보장 | `project_id`, `status_id`, `milestone_id` 외래키 | 잘못된 참조 방지 |
-| 열 순서 음수 방지 | `CHECK (position >= 0)` | 화면 정렬 데이터 보호 |
-| 이슈 상태값 오입력 방지 | `CHECK (issue_state IN ('open','closed'))` | 허용값만 저장 |
-| 종료 시각 모순 방지 | `CHECK (closed_at IS NULL OR closed_at >= created_at)` | 닫힌 시각이 생성보다 앞설 수 없음 |
-| 카드 중복 적재 방지 | `UNIQUE (project_id, github_issue_number)` | 같은 이슈가 두 번 들어가지 않음 |
-| 담당자 중복 배정 방지 | `(task_id, user_id)` 복합 PK | 같은 사람이 한 카드에 두 번 배정되지 않음 |
-| 상태 이름·순서 중복 방지 | `UNIQUE (project_id, status_name)`, `UNIQUE (project_id, position)` | 같은 보드에 같은 열이 두 개 생기지 않음 |
+### PK와 UNIQUE
 
----
+- 독립 Entity는 단일 PK를 가진다.
+- 관계 자체가 식별자인 `task_assignees`는 `(task_id, user_id)` 복합 PK를 사용한다.
+- `users.github_username`은 UNIQUE로 관리한다.
+- `statuses`에는 `UNIQUE(project_id, status_name)`과 `UNIQUE(project_id, position)`을 둔다.
+- `tasks`에는 `UNIQUE(project_id, github_issue_number)`를 둔다.
+- `milestones`에는 `UNIQUE(project_id, github_milestone_number)`를 둔다.
 
-## 6. 샘플 데이터
+### CHECK
 
-실제 CONES 보드에서 확인한 데이터를 Supabase에 입력했습니다.
+- `statuses.position >= 0`
+- `tasks.issue_state IN ('open', 'closed')`
+- `tasks.closed_at IS NULL OR closed_at >= created_at`
 
-| 테이블 | 건수 |
-|---|---:|
-| projects | 1 |
-| users | 4 |
-| statuses | 3 |
-| milestones | 1 |
-| tasks | 19 |
-| task_assignees | 26 |
+### 삭제 정책
 
-담당자: `Hamchaelim`, `seune-h0203`, `ohoobae`, `qkrtpfls03`
-
-### 대표 샘플
-
-| 상태 열 | Issue | 작업 카드 | 담당자 |
-|---|---|---|---|
-| In Progress | #9 | [QA] Animation 및 Interaction 최종 테스트 | Hamchaelim |
-| In Progress | #13 | [PRESENTATION] 3분 발표 및 Demo 준비 | seune-h0203 |
-| In Progress | #39 | [PRESENTATION] 발표 대본 준비 | ohoobae |
-| Done | #3 | [FE] 전체 페이지 콘텐츠 연결 검수 | qkrtpfls03, seune-h0203 |
-| Done | #32 | [BE] Supabase 커머스 백엔드(스키마·RLS·RPC) 구축 | ohoobae, seune-h0203 |
-| Done | #12 | [DEPLOY] GitHub Pages 최종 배포 확인 | Hamchaelim |
-
-카드 19건에 대해 배정은 26건입니다. **담당자가 2명인 카드가 7건** 있었고,
-이것이 `task_assignees` 중간 테이블이 필요했던 직접적인 근거입니다.
+- Project와 생명주기를 공유하는 하위 데이터(Status, Milestone, Task)는 `ON DELETE CASCADE`.
+- Task 삭제 시 담당 관계(`task_assignees`)도 함께 삭제한다.
 
 ---
 
-## 7. Supabase 보안 구성
+## 7. Supabase RLS
 
-- `public` 스키마의 모든 테이블에 Row Level Security(RLS)를 활성화했습니다.
-- 데이터 적재·동기화 작업은 `service_role` 기준으로 수행합니다.
-- Access Token 등 비밀값은 저장소와 문서에 포함하지 않습니다.
+- `public` 스키마의 모든 테이블에 RLS를 활성화했다.
+- 데이터 적재·동기화 작업은 `service_role` 기준으로 수행한다.
+- Access Token 등 비밀값은 저장소와 문서에 포함하지 않는다.
 
 ---
 
-## 8. 구현 및 검증
+## 8. 검증
 
-보드 화면과 DB 조회 결과가 일치하는지 SQL로 확인했습니다.
+보드 화면과 DB 조회 결과가 일치하는지 SQL로 확인한다.
 
-### 상태별 카드 수
+**상태별 카드 수**
 
 ```sql
 SELECT s.status_name, COUNT(*)
@@ -161,7 +181,7 @@ GROUP BY s.status_name, s.position
 ORDER BY s.position;
 ```
 
-### 칸반 보드 재현
+**칸반 보드 재현**
 
 ```sql
 SELECT s.status_name AS 상태,
@@ -176,7 +196,7 @@ GROUP BY s.status_name, s.position, t.github_issue_number, t.title
 ORDER BY s.position, t.github_issue_number;
 ```
 
-### 담당자가 2명 이상인 카드 (N:M 근거)
+**담당자가 2명 이상인 카드 (N:M 근거)**
 
 ```sql
 SELECT t.github_issue_number, t.title, COUNT(*) AS assignee_count
@@ -187,7 +207,7 @@ HAVING COUNT(*) >= 2
 ORDER BY t.github_issue_number;
 ```
 
-### 이슈 상태와 보드 상태가 어긋난 카드
+**Issue state와 Board status가 어긋난 카드**
 
 ```sql
 SELECT t.github_issue_number, t.title, t.issue_state, s.status_name
@@ -196,6 +216,17 @@ JOIN statuses s ON t.status_id = s.status_id
 WHERE (s.is_done = true  AND t.issue_state = 'open')
    OR (s.is_done = false AND t.issue_state = 'closed');
 ```
+
+### 적재 결과
+
+| 테이블 | 건수 |
+|---|---:|
+| projects | 1 |
+| users | 4 |
+| statuses | 3 |
+| milestones | 1 |
+| tasks | 19 |
+| task_assignees | 26 |
 
 ---
 
@@ -206,23 +237,25 @@ WHERE (s.is_done = true  AND t.issue_state = 'open')
 | 담당자가 2명인 카드 7건 | tasks에 담당자 컬럼 1개 | `task_assignees` 중간 테이블 분리 | 한 칸에 두 값을 넣을 수 없음 (N:M) |
 | 보드 export에 마일스톤 없음 | `milestone_id` 필수 가정 | Nullable 처리 | 보드 CSV 범위 밖의 데이터 |
 | 보드 상태와 이슈 상태 혼동 | 하나의 status 문자열 고려 | `status_id`와 `issue_state` 분리 | 두 값은 서로 다른 개념 |
-| 대량 INSERT 실패 | 단일 트랜잭션으로 일괄 적재 | 배치로 나눠 적재 후 건수 검증 | 트랜잭션 크기 초과 |
+| 대량 INSERT 실패 | 단일 트랜잭션 일괄 적재 | 배치로 나눠 적재 후 건수 검증 | 트랜잭션 크기 초과 |
 
 ---
 
-## 10. 이번 범위에서 제외한 것
+## 10. 이번 범위에서 제외하는 것
 
 CONES 보드는 GitHub Label 대신 제목 접두사(`[QA]`, `[FE]`, `[BE]`, `[DB]`, `[PLAN]`,
-`[CONTENT]`, `[DEPLOY]`, `[DEVOPS]`, `[FIX]`, `[DOCS]`, `[PRESENTATION]`)로 작업 종류를 구분했습니다.
-실제로 Label을 사용하지 않았으므로 `labels` / `task_labels`는 1차 설계에서 제외했습니다.
-댓글, 타임라인 이벤트도 같은 기준으로 제외했습니다.
+`[CONTENT]`, `[DEPLOY]`, `[DEVOPS]`, `[FIX]`, `[DOCS]`, `[PRESENTATION]`)로 작업 종류를 구분했다.
+실제로 Label을 사용하지 않았으므로 `labels` / `task_labels`는 1차 설계에서 제외한다.
+댓글, 타임라인 이벤트, 상태 변경 이력, 팀 소유권 구조도 실제 요구가 확인될 때 추가한다.
 
-"GitHub의 모든 기능을 복제"하는 것이 아니라 **우리 팀이 실제로 사용한 기능을 근거로 설계**하는 것이 원칙입니다.
+이 원칙은 "GitHub가 제공하는 모든 기능을 복제"하는 것이 아니라
+"우리 팀이 실제로 사용한 기능을 근거로 설계"하기 위한 것이다.
 
 ---
 
-## 발표용 한 문장
+## 발표용 핵심 설명
 
-> GitHub 칸반 화면에서 반복되던 담당자·상태·목표 정보를 분리해 Project–Status–Task 구조로 정규화했고,
-> 한 카드에 담당자가 둘인 경우가 7건 있어 중간 테이블로 N:M 관계를 표현했으며,
-> 보드 위치와 이슈 상태를 별도 컬럼으로 구분해 실제 Supabase에서 조회 가능한 칸반 DB를 구현했습니다.
+> 실제 사용한 GitHub Projects 칸반 보드와 Issue 데이터를 추출한 뒤, 반복되는 사용자·상태 문자열과
+> 다대다 담당 관계를 발견해 관계형 DB로 정규화했습니다. 한 카드에 담당자가 둘인 경우가 7건 있어
+> 중간 테이블로 표현했고, 보드 위치와 이슈 상태를 별도 컬럼으로 구분해
+> 복합 키·제약조건·RLS까지 적용한 칸반 DB를 Supabase에 구현했습니다.
